@@ -1,3 +1,4 @@
+import Time exposing (Time)
 import Random
 import String
 import Array
@@ -8,8 +9,8 @@ import Html.Events exposing (onInput, onClick)
 import Html.Attributes exposing (style, placeholder, value)
 import Html.App as App
 
-type Event = Answer String | Noop | NewFlag String | Skip
-type alias Model = { points: Int, currentFlag: String, currentInput: String }
+type Event = Answer String | Noop | NewFlag String | Skip | Tick
+type alias Model = { points: Int, currentFlag: String, currentInput: String, time: Time }
 
 main : Program Never
 main = App.program { init =  (init, generateNewFlag), update = update, view = view, subscriptions = subscription }
@@ -40,12 +41,16 @@ update event model =
       Nothing -> ({ model | currentInput = ans }, Cmd.none)
     NewFlag flag -> ({model | currentFlag = flag }, Cmd.none)
     Skip -> (model, generateNewFlag)
+    Tick -> ({ model | time = model.time - tickRate }, Cmd.none)
     Noop -> (model, Cmd.none)
+
+tickRate = 100 * Time.millisecond
 
 view : Model -> Html Event
 view model = div []
   [ title
   , points model.points
+  , time model.time
   , flag model.currentFlag
   , answer model.currentInput
   , skipButton
@@ -57,6 +62,17 @@ title = h1 [style [("font-size", "84px"), ("text-align", "center")]] [text "Flag
 points : Int -> Html a
 points value = p [style [("font-size", "24px"), ("text-align", "center")]] [text ("Points: " ++ (toString value))]
 
+time : Time -> Html a
+time time = div [] [text ("Time left: " ++ (timeString time) ++ "s")]
+
+timeString : Time -> String
+timeString time =
+  let seconds = time |> Time.inSeconds |> toString
+  in case String.split "." seconds of
+    [firstHalf, _] -> String.padRight ((String.length firstHalf) + 3) '0' seconds
+    [firstHalf] -> String.padRight ((String.length firstHalf) + 3) '0' (firstHalf ++ ".")
+    _ -> seconds
+
 flag : String -> Html a
 flag currentFlag = div [style [("font-size", "84px"), ("text-align", "center")]] [text currentFlag]
 
@@ -67,10 +83,10 @@ skipButton : Html Event
 skipButton = button [style [("font-size", "34px"), ("margin", "auto"), ("display", "block"), ("height", "50px"), ("width", "150px")], onClick Skip] [text "skip"]
 
 subscription : Model -> Sub Event
-subscription model = Sub.none
+subscription model = Time.every tickRate (\_ -> Tick)
 
 init : Model
-init = { points = 0, currentFlag = germany, currentInput = ""}
+init = { points = 0, currentFlag = germany, currentInput = "", time = 20 * Time.second }
 
 germany = (String.fromChar '\x1F1E9') ++ (String.fromChar '\x1F1EA')
 uk = (String.fromChar '\x1F1EC') ++ (String.fromChar '\x1F1E7')
