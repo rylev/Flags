@@ -9,7 +9,7 @@ import Html.Events exposing (onInput, onClick)
 import Html.Attributes exposing (style, placeholder, value)
 import Html.App as App
 
-type Event = Answer String | Noop | NewFlag String | Skip | Tick | Restart
+type Event = Answer String | NewFlag String | Skip | Tick | Restart
 type GameState = Active | Over
 type alias Model = { gameState: GameState, points: Int, currentFlag: String, currentInput: String, time: Time }
 
@@ -48,7 +48,6 @@ update event model =
       else
         ({ model | gameState = Over }, Cmd.none)
     Restart -> (init, generateNewFlag)
-    Noop -> (model, Cmd.none)
 
 tickRate = 100 * Time.millisecond
 
@@ -102,7 +101,7 @@ subscription : Model -> Sub Event
 subscription model = Time.every tickRate (\_ -> Tick)
 
 init : Model
-init = { gameState = Active, points = 0, currentFlag = germany, currentInput = "", time = 5 * Time.second }
+init = { gameState = Active, points = 0, currentFlag = germany, currentInput = "", time = 30 * Time.second }
 
 germany = (String.fromChar '\x1F1E9') ++ (String.fromChar '\x1F1EA')
 uk = (String.fromChar '\x1F1EC') ++ (String.fromChar '\x1F1E7')
