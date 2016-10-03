@@ -5,7 +5,7 @@ import Dict exposing (Dict)
 import Json.Decode exposing ((:=))
 import Html exposing (Html, div, h1, text, p, input, form, button)
 import Html.Events exposing (onInput, onClick)
-import Html.Attributes exposing (placeholder, value)
+import Html.Attributes exposing (style, placeholder, value)
 import Html.App as App
 
 type Event = Answer String | Noop | NewFlag String | Skip
@@ -18,7 +18,7 @@ generateNewFlag : Cmd Event
 generateNewFlag = Random.generate NewFlag newFlagGenerator
 
 newFlagGenerator : Random.Generator String
-newFlagGenerator = Random.map (atIndex flagMap ":-(") (randomIndex flagMap)
+newFlagGenerator = Random.map (atIndex flagMap germany) (randomIndex flagMap)
 
 randomIndex : Dict comparable a -> Random.Generator Int
 randomIndex map = Random.int 0 ((List.length (Dict.keys map)) - 1)
@@ -31,7 +31,7 @@ atIndex dict default i = case dict |> Dict.toList |> Array.fromList |> Array.get
 update : Event -> Model -> (Model, Cmd Event)
 update event model =
   case Debug.log "Event" event of
-    Answer ans -> case Dict.get ans flagMap of
+    Answer ans -> case Dict.get (String.toLower ans) flagMap of
       Just flag ->
         if flag == model.currentFlag then
           ({ model |  points = model.points + 1, currentInput = "" }, generateNewFlag)
@@ -52,40 +52,47 @@ view model = div []
   ]
 
 title : Html a
-title = h1 [] [text "Flags"]
+title = h1 [style [("font-size", "84px"), ("text-align", "center")]] [text "Flags"]
 
 points : Int -> Html a
-points value = p [] [text (toString value)]
+points value = p [style [("font-size", "24px"), ("text-align", "center")]] [text ("Points: " ++ (toString value))]
 
 flag : String -> Html a
-flag currentFlag = p [] [text currentFlag]
+flag currentFlag = div [style [("font-size", "84px"), ("text-align", "center")]] [text currentFlag]
 
 answer : String -> Html Event
-answer currentValue = input [ placeholder "Flag", value currentValue, onInput Answer ] []
+answer currentValue = input [style [("font-size", "40px"), ("margin", "20px auto"), ("display", "block"), ("height", "50px"), ("width", "400px")], placeholder "Flag", value currentValue, onInput Answer ] []
 
 skipButton : Html Event
-skipButton = button [onClick Skip] [text "skip"]
+skipButton = button [style [("font-size", "34px"), ("margin", "auto"), ("display", "block"), ("height", "50px"), ("width", "150px")], onClick Skip] [text "skip"]
 
 subscription : Model -> Sub Event
 subscription model = Sub.none
 
 init : Model
-init = { points = 0, currentFlag = "🇩🇪", currentInput = ""}
+init = { points = 0, currentFlag = germany, currentInput = ""}
+
+germany = (String.fromChar '\x1F1E9') ++ (String.fromChar '\x1F1EA')
+uk = (String.fromChar '\x1F1EC') ++ (String.fromChar '\x1F1E7')
+usa = (String.fromChar '\x1F1FA') ++ (String.fromChar '\x1F1F8')
 
 flagMap : Dict String String
 flagMap =
   Dict.fromList
     [ ("china",  (String.fromChar '\x1F1E8') ++ (String.fromChar '\x1F1F3'))
-    ,("germany",  (String.fromChar '\x1F1E9') ++ (String.fromChar '\x1F1EA'))
-    ,("spain",  (String.fromChar '\x1F1EA') ++ (String.fromChar '\x1F1F8'))
-    ,("france",  (String.fromChar '\x1F1EB') ++ (String.fromChar '\x1F1F7'))
-    ,("united kingdom",  (String.fromChar '\x1F1EC') ++ (String.fromChar '\x1F1E7'))
-    ,("italy",  (String.fromChar '\x1F1EE') ++ (String.fromChar '\x1F1F9'))
-    ,("japan",  (String.fromChar '\x1F1EF') ++ (String.fromChar '\x1F1F5'))
-    ,("south korea",  (String.fromChar '\x1F1F0') ++ (String.fromChar '\x1F1F7'))
-    ,("russia",  (String.fromChar '\x1F1F7') ++ (String.fromChar '\x1F1FA'))
-    ,("united states",  (String.fromChar '\x1F1FA') ++ (String.fromChar '\x1F1F8'))
-    ,("andorra",  (String.fromChar '\x1F1E6') ++ (String.fromChar '\x1F1E9'))
+    , ("germany",  germany)
+    , ("spain",  (String.fromChar '\x1F1EA') ++ (String.fromChar '\x1F1F8'))
+    , ("france",  (String.fromChar '\x1F1EB') ++ (String.fromChar '\x1F1F7'))
+    , ("uk",  uk)
+    , ("great britain",  uk)
+    , ("united kingdom",  uk)
+    , ("italy",  (String.fromChar '\x1F1EE') ++ (String.fromChar '\x1F1F9'))
+    , ("japan",  (String.fromChar '\x1F1EF') ++ (String.fromChar '\x1F1F5'))
+    , ("south korea",  (String.fromChar '\x1F1F0') ++ (String.fromChar '\x1F1F7'))
+    , ("russia",  (String.fromChar '\x1F1F7') ++ (String.fromChar '\x1F1FA'))
+    , ("united states",  usa)
+    , ("us", usa)
+    , ("andorra",  (String.fromChar '\x1F1E6') ++ (String.fromChar '\x1F1E9'))
     -- ,("united arab emirates",  (String.fromChar '\x1F1E6') ++ (String.fromChar '\x1F1EA'))
     -- ,("afghanistan",  (String.fromChar '\x1F1E6') ++ (String.fromChar '\x1F1EB'))
     -- ,("antigua and barbuda",  (String.fromChar '\x1F1E6') ++ (String.fromChar '\x1F1EC'))
