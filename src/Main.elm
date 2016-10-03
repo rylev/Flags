@@ -4,11 +4,11 @@ import Array
 import Dict exposing (Dict)
 import Json.Decode exposing ((:=))
 import Html exposing (Html, div, h1, text, p, input, form, button)
-import Html.Events exposing (onInput)
+import Html.Events exposing (onInput, onClick)
 import Html.Attributes exposing (placeholder, value)
 import Html.App as App
 
-type Event = Answer String | Noop | NewFlag String
+type Event = Answer String | Noop | NewFlag String | Skip
 type alias Model = { points: Int, currentFlag: String, currentInput: String }
 
 main : Program Never
@@ -39,6 +39,7 @@ update event model =
           ({ model | currentInput = ans }, Cmd.none)
       Nothing -> ({ model | currentInput = ans }, Cmd.none)
     NewFlag flag -> ({model | currentFlag = flag }, Cmd.none)
+    Skip -> (model, generateNewFlag)
     Noop -> (model, Cmd.none)
 
 view : Model -> Html Event
@@ -47,6 +48,7 @@ view model = div []
   , points model.points
   , flag model.currentFlag
   , answer model.currentInput
+  , skipButton
   ]
 
 title : Html a
@@ -60,6 +62,9 @@ flag currentFlag = p [] [text currentFlag]
 
 answer : String -> Html Event
 answer currentValue = input [ placeholder "Flag", value currentValue, onInput Answer ] []
+
+skipButton : Html Event
+skipButton = button [onClick Skip] [text "skip"]
 
 subscription : Model -> Sub Event
 subscription model = Sub.none

@@ -1,7 +1,7 @@
 {
     "version": "1.0.0",
     "summary": "Flag guessing game",
-    "repository": "",
+    "repository": "https://github.com/rylev/tbd.git",
     "license": "BSD3",
     "source-directories": [
         "src"
