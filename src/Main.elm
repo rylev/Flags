@@ -9,8 +9,9 @@ import Html.Events exposing (onInput, onClick)
 import Html.Attributes exposing (style, placeholder, value)
 import Html.App as App
 
-type Event = Answer String | Noop | NewFlag String | Skip | Tick
-type alias Model = { points: Int, currentFlag: String, currentInput: String, time: Time }
+type Event = Answer String | Noop | NewFlag String | Skip | Tick | Restart
+type GameState = Active | Over
+type alias Model = { gameState: GameState, points: Int, currentFlag: String, currentInput: String, time: Time }
 
 main : Program Never
 main = App.program { init =  (init, generateNewFlag), update = update, view = view, subscriptions = subscription }
@@ -41,19 +42,34 @@ update event model =
       Nothing -> ({ model | currentInput = ans }, Cmd.none)
     NewFlag flag -> ({model | currentFlag = flag }, Cmd.none)
     Skip -> (model, generateNewFlag)
-    Tick -> ({ model | time = model.time - tickRate }, Cmd.none)
+    Tick ->
+      if model.time > 0 then
+        ({ model | time = model.time - tickRate }, Cmd.none)
+      else
+        ({ model | gameState = Over }, Cmd.none)
+    Restart -> (init, generateNewFlag)
     Noop -> (model, Cmd.none)
 
 tickRate = 100 * Time.millisecond
 
 view : Model -> Html Event
-view model = div []
+view model =
+  case model.gameState of
+    Active -> activeGame model
+    Over -> gameOver
+
+activeGame model = div []
   [ title
   , points model.points
   , time model.time
   , flag model.currentFlag
   , answer model.currentInput
   , skipButton
+  ]
+
+gameOver = div []
+  [ text "Over"
+  , button [onClick Restart] [text "Restart"]
   ]
 
 title : Html a
@@ -86,7 +102,7 @@ subscription : Model -> Sub Event
 subscription model = Time.every tickRate (\_ -> Tick)
 
 init : Model
-init = { points = 0, currentFlag = germany, currentInput = "", time = 20 * Time.second }
+init = { gameState = Active, points = 0, currentFlag = germany, currentInput = "", time = 5 * Time.second }
 
 germany = (String.fromChar '\x1F1E9') ++ (String.fromChar '\x1F1EA')
 uk = (String.fromChar '\x1F1EC') ++ (String.fromChar '\x1F1E7')
