@@ -1,19 +1,29 @@
 import Time exposing (Time)
+import Task
+import Process
 import Random
 import String
 import Array
 import Dict exposing (Dict)
 import Json.Decode exposing ((:=))
-import Html exposing (Html, div, h1, text, p, input, form, button, fieldset, label)
+import Html exposing (Html, div, span, h1, text, p, input, form, button, fieldset, label)
 import Html.Events exposing (on, onInput, onClick)
 import Html.Attributes exposing (style, placeholder, value, type', name, checked)
 import Html.App as App
 
 type DifficultyLevel = Level1 | Level2 | Level3 | Level4 | Level5
-type Event = NewInput String | Submit | NewFlag String | Skip | Tick Time | Start | ChangeDifficulty DifficultyLevel
+type alias FlagInfo = { countryName: String, flag: String }
+type Event = NewInput String | Submit | NewFlag FlagInfo | Skip String | Tick Time | Start | ChangeDifficulty DifficultyLevel | RemoveWrongAnswer
 type Model = StartMenu StartMenuState | ActiveGame ActiveGameState | GameOverMenu GameOverState
 type alias StartMenuState = { difficultyLevel: DifficultyLevel }
-type alias ActiveGameState = { points: Int, currentFlag: String, currentInput: String, time: Time, difficultyLevel: DifficultyLevel }
+type alias ActiveGameState =
+  { points: Int
+  , flagInfo: FlagInfo
+  , currentInput: String
+  , time: Time
+  , difficultyLevel: DifficultyLevel
+  , lastWrongQuestion: Maybe String
+  }
 type alias GameOverState = { points: Int }
 
 main : Program Never
@@ -22,9 +32,9 @@ main = App.program { init = (init, Cmd.none), update = update, view = view, subs
 generateNewFlag : DifficultyLevel -> Cmd Event
 generateNewFlag difficultyLevel = Random.generate NewFlag (newFlagGenerator difficultyLevel)
 
-newFlagGenerator : DifficultyLevel -> Random.Generator String
+newFlagGenerator : DifficultyLevel -> Random.Generator FlagInfo
 newFlagGenerator difficultyLevel =
-  flagDatabase difficultyLevel |> getRandom
+  flagDatabase difficultyLevel |> getRandom |> Random.map (\(countryName, flag) -> { flag = flag, countryName = countryName })
 
 flagDatabase : DifficultyLevel -> Dict String String
 flagDatabase difficultyLevel =
@@ -35,7 +45,7 @@ flagDatabase difficultyLevel =
     Level4 -> level4
     Level5 -> level5
 
-getRandom : Dict comparable a -> Random.Generator a
+getRandom : Dict comparable a -> Random.Generator (comparable, a)
 getRandom dict = Random.map (atIndex dict) (randomIndex dict)
 
 randomIndex : Dict comparable a -> Random.Generator Int
@@ -43,8 +53,8 @@ randomIndex map =
   let lastIndex = (List.length (Dict.keys map)) - 1
   in Random.int 0 lastIndex
 
-atIndex : Dict comparable a -> Int -> a
-atIndex dict i = case dict |> Dict.toList |> Array.fromList |> Array.get i |> Maybe.map snd of
+atIndex : Dict comparable a -> Int -> (comparable, a)
+atIndex dict i = case dict |> Dict.toList |> Array.fromList |> Array.get i of
   Just item -> item
   Nothing -> Debug.crash "Index out of range"
 
@@ -67,6 +77,15 @@ update event model =
         Tick _ -> (model, Cmd.none)
         _ -> unexpectedEvent event
 
+eventuallyRemoveWrongAnswer : Cmd Event
+eventuallyRemoveWrongAnswer = waitThen (3 * Time.second) RemoveWrongAnswer
+
+waitThen : Time -> a -> Cmd a
+waitThen time msg =
+  let wrap thing = (\_ -> thing)
+      sleep = Process.sleep time `Task.andThen` wrap (Task.succeed ())
+  in Task.perform (wrap msg) (wrap msg) sleep
+
 updateActiveGame : Event -> ActiveGameState -> (Model, Cmd Event)
 updateActiveGame event state =
   let
@@ -74,10 +93,10 @@ updateActiveGame event state =
         let
             mungedInput = String.toLower state.currentInput
             flag = Dict.get mungedInput (flagDatabase state.difficultyLevel)
-            isMatch = contains flag state.currentFlag
+            isMatch = contains flag state.flagInfo.flag
         in
            if isMatch then
-              (ActiveGame { state |  points = state.points + 1, currentInput = "" }, generateNewFlag state.difficultyLevel)
+              (ActiveGame { state |  points = state.points + 1, currentInput = "", lastWrongQuestion = Nothing }, generateNewFlag state.difficultyLevel)
            else
               (ActiveGame state, Cmd.none)
       onTick state dt =
@@ -90,17 +109,19 @@ updateActiveGame event state =
       Tick dt -> onTick state dt
       NewInput input -> (ActiveGame { state | currentInput = input }, Cmd.none)
       Submit -> onSubmit state
-      NewFlag flag -> (ActiveGame { state | currentFlag = flag }, Cmd.none)
-      Skip -> (ActiveGame state, generateNewFlag state.difficultyLevel)
+      RemoveWrongAnswer -> (ActiveGame { state | lastWrongQuestion = Nothing }, Cmd.none)
+      NewFlag flagInfo -> (ActiveGame { state | flagInfo = flagInfo }, Cmd.none)
+      Skip countryName -> (ActiveGame { state | lastWrongQuestion = Just countryName }, Cmd.batch [(generateNewFlag state.difficultyLevel), eventuallyRemoveWrongAnswer])
       _ -> unexpectedEvent event
 
 newGame : DifficultyLevel -> Model
 newGame difficultyLevel = ActiveGame
   { difficultyLevel = difficultyLevel
   , points = 0
-  , currentFlag = germany
+  , flagInfo = { flag = germany, countryName = "Germany" }
   , time = 15 * Time.second
   , currentInput = ""
+  , lastWrongQuestion = Nothing
   }
 
 unexpectedEvent : Event -> a
@@ -144,11 +165,19 @@ activeGame state =
   div []
     [ title
     , points state.points
+    , lastWrongQuestion state.lastWrongQuestion
     , time state.time
-    , flag state.currentFlag
+    , flag state.flagInfo.flag
     , answer state.currentInput
-    , skipButton
+    , skipButton state.flagInfo.countryName
     ]
+
+lastWrongQuestion : Maybe String -> Html a
+lastWrongQuestion country =
+  case country of
+    Just c -> div [] [text ("It was " ++ c)]
+    Nothing -> span [] []
+
 
 gameOver : GameOverState -> Html Event
 gameOver state = div []
@@ -200,8 +229,17 @@ keyDownEvent =
       keyToEvent key = if key == "Enter" then Submit else Tick 0
   in Json.Decode.map keyToEvent key
 
-skipButton : Html Event
-skipButton = button [style [("font-size", "34px"), ("margin", "auto"), ("display", "block"), ("height", "50px"), ("width", "150px")], onClick Skip] [text "skip"]
+skipButton : String -> Html Event
+skipButton countryName =
+  button [ style
+            [ ("font-size", "34px")
+            , ("margin", "auto")
+            , ("display", "block")
+            , ("height", "50px")
+            , ("width", "150px")
+            ]
+         , onClick (Skip countryName)]
+         [text "skip"]
 
 subscription : Model -> Sub Event
 subscription model = Time.every tickRate (\_ -> Tick tickRate)
