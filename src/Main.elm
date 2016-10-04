@@ -99,7 +99,7 @@ newGame difficultyLevel = ActiveGame
   { difficultyLevel = difficultyLevel
   , points = 0
   , currentFlag = germany
-  , time = 30 * Time.second
+  , time = 15 * Time.second
   , currentInput = ""
   }
 
@@ -130,11 +130,11 @@ startMenu state =
   div []
     [ h1 [] [text "Flags"]
     , fieldset []
-        [ radio "Level 1" (state.difficultyLevel == Level1) (ChangeDifficulty Level1)
-        , radio "Level 2" (state.difficultyLevel == Level2) (ChangeDifficulty Level2)
-        , radio "Level 3" (state.difficultyLevel == Level3) (ChangeDifficulty Level3)
-        , radio "Level 4" (state.difficultyLevel == Level4) (ChangeDifficulty Level4)
-        , radio "Level 5" (state.difficultyLevel == Level5) (ChangeDifficulty Level5)
+        [ radio "Xenophobe" (state.difficultyLevel == Level1) (ChangeDifficulty Level1)
+        , radio "Resort Tourist" (state.difficultyLevel == Level2) (ChangeDifficulty Level2)
+        , radio "European Backpacker" (state.difficultyLevel == Level3) (ChangeDifficulty Level3)
+        , radio "National Geographic Enthusiast" (state.difficultyLevel == Level4) (ChangeDifficulty Level4)
+        , radio "Professor of Geography" (state.difficultyLevel == Level5) (ChangeDifficulty Level5)
         ]
     , button [onClick Start] [text "Begin"]
     ]
@@ -152,8 +152,9 @@ activeGame state =
 
 gameOver : GameOverState -> Html Event
 gameOver state = div []
-  [ text "Over"
-  , button [onClick Start] [text "Restart"]
+  [ div [style [("font-size", "24px"), ("text-align", "center")]] [text "Over"]
+  , points state.points
+  , button [style [("font-size", "24px"), ("display", "block"), ("margin", "0 auto")], onClick Start] [text "Restart"]
   ]
 
 title : Html a
