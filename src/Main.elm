@@ -9,9 +9,10 @@ import Html.Events exposing (on, onInput, onClick)
 import Html.Attributes exposing (style, placeholder, value)
 import Html.App as App
 
-type Event = NewInput String | Submit | NewFlag String | Skip | Tick Time | Restart
-type GameState = Start | Active | Over
-type alias Model = { gameState: GameState, points: Int, currentFlag: String, currentInput: String, time: Time }
+type Event = NewInput String | Submit | NewFlag String | Skip | Tick Time | Start
+type Model = StartMenu | ActiveGame ActiveGameState | GameOverMenu GameOverState
+type alias ActiveGameState = { points: Int, currentFlag: String, currentInput: String, time: Time }
+type alias GameOverState = { points: Int }
 
 main : Program Never
 main = App.program { init = (init, Cmd.none), update = update, view = view, subscriptions = subscription }
@@ -37,59 +38,80 @@ contains maybe value = (Maybe.map (\v -> value == v) maybe) |> Maybe.withDefault
 
 update : Event -> Model -> (Model, Cmd Event)
 update event model =
-  case Debug.log "Event" event of
-    NewInput input -> ({ model | currentInput = input }, Cmd.none)
-    Submit ->
-      let
-          mungedInput = String.toLower model.currentInput
-          flag = Dict.get mungedInput easy
-          isMatch = contains flag model.currentFlag
-      in
-        if isMatch then
-          ({ model |  points = model.points + 1, currentInput = "" }, generateNewFlag)
+  case model of
+    ActiveGame state -> updateActiveGame state event
+    StartMenu -> updateMenu event model
+    GameOverMenu _ -> updateMenu event model
+
+updateActiveGame state event =
+  let
+      onSubmit state =
+        let
+            mungedInput = String.toLower state.currentInput
+            flag = Dict.get mungedInput easy
+            isMatch = contains flag state.currentFlag
+        in
+           if isMatch then
+              (ActiveGame { state |  points = state.points + 1, currentInput = "" }, generateNewFlag)
+           else
+              (ActiveGame state, Cmd.none)
+      onTick state dt =
+        if state.time > 0 then
+          (ActiveGame { state | time = state.time - dt }, Cmd.none)
         else
-          (model, Cmd.none)
-    NewFlag flag -> ({model | currentFlag = flag }, Cmd.none)
-    Skip -> (model, generateNewFlag)
-    Tick dt ->
-      if model.time > 0 then
-        ({ model | time = model.time - dt }, Cmd.none)
-      else
-        ({ model | gameState = Over }, Cmd.none)
-    Restart -> ({ init | gameState = Active }, generateNewFlag)
+          (GameOverMenu { points = state.points }, Cmd.none)
+  in
+    case event of
+      Tick dt -> onTick state dt
+      NewInput input -> (ActiveGame { state | currentInput = input }, Cmd.none)
+      Submit -> onSubmit state
+      NewFlag flag -> (ActiveGame { state | currentFlag = flag }, Cmd.none)
+      Skip -> (ActiveGame state, generateNewFlag)
+      _ -> unexpectedEvent event
+
+updateMenu : Event -> Model -> (Model, Cmd Event)
+updateMenu event model =
+  case event of
+    Start -> (model, generateNewFlag)
+    NewFlag flag -> ( ActiveGame { points = 0, currentFlag = flag, time = 30 * Time.second, currentInput = "" }, Cmd.none )
+    Tick _ -> (model, Cmd.none)
+    _ -> unexpectedEvent event
+
+unexpectedEvent : Event -> a
+unexpectedEvent event = Debug.crash ("Unexpected event " ++ (toString event))
 
 tickRate : Time
 tickRate = 100 * Time.millisecond
 
 view : Model -> Html Event
 view model =
-  case model.gameState of
-    Start -> startMenu model
-    Active -> activeGame model
-    Over -> gameOver model
+  case model of
+    ActiveGame state -> activeGame state
+    StartMenu -> startMenu
+    GameOverMenu state -> gameOver state
 
-startMenu : Model -> Html Event
-startMenu model =
+startMenu : Html Event
+startMenu =
   div []
     [ h1 [] [text "Flags"]
-    , button [onClick Restart] [text "Begin"]
+    , button [onClick Start] [text "Begin"]
     ]
 
-activeGame : Model -> Html Event
-activeGame model =
+activeGame : ActiveGameState -> Html Event
+activeGame state =
   div []
     [ title
-    , points model.points
-    , time model.time
-    , flag model.currentFlag
-    , answer model.currentInput
+    , points state.points
+    , time state.time
+    , flag state.currentFlag
+    , answer state.currentInput
     , skipButton
     ]
 
-gameOver : Model -> Html Event
-gameOver model = div []
+gameOver : GameOverState -> Html Event
+gameOver state = div []
   [ text "Over"
-  , button [onClick Restart] [text "Restart"]
+  , button [onClick Start] [text "Restart"]
   ]
 
 title : Html a
@@ -142,7 +164,7 @@ subscription : Model -> Sub Event
 subscription model = Time.every tickRate (\_ -> Tick tickRate)
 
 init : Model
-init = { gameState = Start, points = 0, currentFlag = germany, currentInput = "", time = 30 * Time.second }
+init = StartMenu
 
 china = (String.fromChar '\x1F1E8') ++ (String.fromChar '\x1F1F3')
 germany = (String.fromChar '\x1F1E9') ++ (String.fromChar '\x1F1EA')
