@@ -1,7 +1,11 @@
 module Model exposing (..)
 
 import Data exposing (..)
+
+import Dict exposing (Dict)
+import Array
 import Time exposing (Time)
+import Random
 
 type Model =
   StartMenu StartMenuState
@@ -45,3 +49,33 @@ type Event =
 
 type DifficultyLevel = Level1 | Level2 | Level3 | Level4 | Level5
 type alias FlagInfo = { countryName: String, flag: String }
+
+
+generateNewFlag : DifficultyLevel -> Cmd Event
+generateNewFlag difficultyLevel = Random.generate NewFlag (newFlagGenerator difficultyLevel)
+
+newFlagGenerator : DifficultyLevel -> Random.Generator FlagInfo
+newFlagGenerator difficultyLevel =
+  flagDatabase difficultyLevel |> getRandom |> Random.map (\(countryName, flag) -> { flag = flag, countryName = countryName })
+
+flagDatabase : DifficultyLevel -> Dict String String
+flagDatabase difficultyLevel =
+  case difficultyLevel of
+    Level1 -> level1
+    Level2 -> level2
+    Level3 -> level3
+    Level4 -> level4
+    Level5 -> level5
+
+getRandom : Dict comparable a -> Random.Generator (comparable, a)
+getRandom dict = Random.map (atIndex dict) (randomIndex dict)
+
+randomIndex : Dict comparable a -> Random.Generator Int
+randomIndex map =
+  let lastIndex = (List.length (Dict.keys map)) - 1
+  in Random.int 0 lastIndex
+
+atIndex : Dict comparable a -> Int -> (comparable, a)
+atIndex dict i = case dict |> Dict.toList |> Array.fromList |> Array.get i of
+  Just item -> item
+  Nothing -> Debug.crash "Index out of range"
