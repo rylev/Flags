@@ -4,12 +4,13 @@ import String
 import Array
 import Dict exposing (Dict)
 import Json.Decode exposing ((:=))
-import Html exposing (Html, div, h1, text, p, input, form, button)
+import Html exposing (Html, div, h1, text, p, input, form, button, fieldset, label)
 import Html.Events exposing (on, onInput, onClick)
-import Html.Attributes exposing (style, placeholder, value)
+import Html.Attributes exposing (style, placeholder, value, type', name)
 import Html.App as App
 
-type Event = NewInput String | Submit | NewFlag String | Skip | Tick Time | Start
+type DifficultyLevel = Level1 | Level2 | Level3 | Level4 | Level5
+type Event = NewInput String | Submit | NewFlag String | Skip | Tick Time | Start | ChangeDifficulty DifficultyLevel
 type Model = StartMenu | ActiveGame ActiveGameState | GameOverMenu GameOverState
 type alias ActiveGameState = { points: Int, currentFlag: String, currentInput: String, time: Time }
 type alias GameOverState = { points: Int }
@@ -75,6 +76,7 @@ updateMenu event model =
     Start -> (model, generateNewFlag)
     NewFlag flag -> ( ActiveGame { points = 0, currentFlag = flag, time = 30 * Time.second, currentInput = "" }, Cmd.none )
     Tick _ -> (model, Cmd.none)
+    ChangeDifficulty level -> (model, Cmd.none)
     _ -> unexpectedEvent event
 
 unexpectedEvent : Event -> a
@@ -82,6 +84,15 @@ unexpectedEvent event = Debug.crash ("Unexpected event " ++ (toString event))
 
 tickRate : Time
 tickRate = 100 * Time.millisecond
+
+radio : String -> msg -> Html msg
+radio value msg =
+  label
+    [ style [("padding", "20px")]
+    ]
+    [ input [ type' "radio", name "font-size", onClick msg ] []
+    , text value
+    ]
 
 view : Model -> Html Event
 view model =
@@ -94,6 +105,13 @@ startMenu : Html Event
 startMenu =
   div []
     [ h1 [] [text "Flags"]
+    , fieldset []
+        [ radio "Level 1" (ChangeDifficulty Level1)
+        , radio "Level 2" (ChangeDifficulty Level2)
+        , radio "Level 3" (ChangeDifficulty Level3)
+        , radio "Level 4" (ChangeDifficulty Level4)
+        , radio "Level 5" (ChangeDifficulty Level5)
+        ]
     , button [onClick Start] [text "Begin"]
     ]
 
