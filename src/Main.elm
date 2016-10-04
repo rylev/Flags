@@ -10,11 +10,11 @@ import Html.Attributes exposing (style, placeholder, value)
 import Html.App as App
 
 type Event = NewInput String | Submit | NewFlag String | Skip | Tick Time | Restart
-type GameState = Active | Over
+type GameState = Start | Active | Over
 type alias Model = { gameState: GameState, points: Int, currentFlag: String, currentInput: String, time: Time }
 
 main : Program Never
-main = App.program { init = (init, generateNewFlag), update = update, view = view, subscriptions = subscription }
+main = App.program { init = (init, Cmd.none), update = update, view = view, subscriptions = subscription }
 
 generateNewFlag : Cmd Event
 generateNewFlag = Random.generate NewFlag newFlagGenerator
@@ -56,7 +56,7 @@ update event model =
         ({ model | time = model.time - dt }, Cmd.none)
       else
         ({ model | gameState = Over }, Cmd.none)
-    Restart -> (init, generateNewFlag)
+    Restart -> ({ init | gameState = Active }, generateNewFlag)
 
 tickRate : Time
 tickRate = 100 * Time.millisecond
@@ -64,18 +64,27 @@ tickRate = 100 * Time.millisecond
 view : Model -> Html Event
 view model =
   case model.gameState of
+    Start -> startMenu model
     Active -> activeGame model
     Over -> gameOver model
 
+startMenu : Model -> Html Event
+startMenu model =
+  div []
+    [ h1 [] [text "Flags"]
+    , button [onClick Restart] [text "Begin"]
+    ]
+
 activeGame : Model -> Html Event
-activeGame model = div []
-  [ title
-  , points model.points
-  , time model.time
-  , flag model.currentFlag
-  , answer model.currentInput
-  , skipButton
-  ]
+activeGame model =
+  div []
+    [ title
+    , points model.points
+    , time model.time
+    , flag model.currentFlag
+    , answer model.currentInput
+    , skipButton
+    ]
 
 gameOver : Model -> Html Event
 gameOver model = div []
@@ -133,7 +142,7 @@ subscription : Model -> Sub Event
 subscription model = Time.every tickRate (\_ -> Tick tickRate)
 
 init : Model
-init = { gameState = Active, points = 0, currentFlag = germany, currentInput = "", time = 30 * Time.second }
+init = { gameState = Start, points = 0, currentFlag = germany, currentInput = "", time = 30 * Time.second }
 
 china = (String.fromChar '\x1F1E8') ++ (String.fromChar '\x1F1F3')
 germany = (String.fromChar '\x1F1E9') ++ (String.fromChar '\x1F1EA')
