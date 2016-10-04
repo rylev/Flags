@@ -1,6 +1,6 @@
-module Update exposing (..)
+module Update exposing (update)
 
-import Model exposing (..)
+import Model exposing (newGame, generateNewFlag, flagDatabase, Event(..), Model(..), ActiveGameState, DifficultyLevel(..))
 import Task
 import Time exposing (Time)
 import Dict exposing (Dict)
@@ -22,15 +22,6 @@ update event model =
         Start -> (newGame Level1, generateNewFlag Level1)
         Tick _ -> (model, Cmd.none)
         _ -> unexpectedEvent event
-
-eventuallyRemoveWrongAnswer : Cmd Event
-eventuallyRemoveWrongAnswer = waitThen (3 * Time.second) RemoveWrongAnswer
-
-waitThen : Time -> a -> Cmd a
-waitThen time msg =
-  let wrap thing = (\_ -> thing)
-      sleep = Process.sleep time `Task.andThen` wrap (Task.succeed ())
-  in Task.perform (wrap msg) (wrap msg) sleep
 
 updateActiveGame : Event -> ActiveGameState -> (Model, Cmd Event)
 updateActiveGame event state =
@@ -64,3 +55,11 @@ updateActiveGame event state =
 unexpectedEvent : Event -> a
 unexpectedEvent event = Debug.crash ("Unexpected event " ++ (toString event))
 
+eventuallyRemoveWrongAnswer : Cmd Event
+eventuallyRemoveWrongAnswer = waitThen (3 * Time.second) RemoveWrongAnswer
+
+waitThen : Time -> a -> Cmd a
+waitThen time msg =
+  let wrap thing = (\_ -> thing)
+      sleep = Process.sleep time `Task.andThen` wrap (Task.succeed ())
+  in Task.perform (wrap msg) (wrap msg) sleep

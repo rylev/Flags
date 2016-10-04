@@ -1,4 +1,4 @@
-module View exposing (..)
+module View exposing (view)
 
 import Time exposing (Time)
 import String
@@ -9,20 +9,11 @@ import Html.Attributes exposing (style, placeholder, value, type', name, checked
 
 import Model exposing (..)
 
-radio : String -> Bool -> Event -> Html Event
-radio value isChecked msg =
-  label
-    [ style [("padding", "20px")]
-    ]
-    [ input [ type' "checkbox", checked isChecked, name "font-size", onClick msg ] []
-    , text value
-    ]
-
 view : Model -> Html Event
 view model =
   case model of
-    ActiveGame state -> activeGame state
     StartMenu state -> startMenu state
+    ActiveGame state -> activeGame state
     GameOverMenu state -> gameOver state
 
 startMenu : StartMenuState -> Html Event
@@ -51,25 +42,18 @@ activeGame state =
     , skipButton state.flagInfo.countryName
     ]
 
-lastWrongQuestion : Maybe String -> Html a
-lastWrongQuestion country =
-  case country of
-    Just c -> div [] [text ("It was " ++ c)]
-    Nothing -> span [] []
-
-
-gameOver : GameOverState -> Html Event
-gameOver state = div []
-  [ div [style [("font-size", "24px"), ("text-align", "center")]] [text "Over"]
-  , points state.points
-  , button [style [("font-size", "24px"), ("display", "block"), ("margin", "0 auto")], onClick Start] [text "Restart"]
-  ]
 
 title : Html a
 title = h1 [style [("font-size", "84px"), ("text-align", "center")]] [text "Flags"]
 
 points : Int -> Html a
 points value = p [style [("font-size", "24px"), ("text-align", "center")]] [text ("Points: " ++ (toString value))]
+
+lastWrongQuestion : Maybe String -> Html a
+lastWrongQuestion country =
+  case country of
+    Just c -> div [] [text ("It was " ++ c)]
+    Nothing -> span [] []
 
 time : Time -> Html a
 time time = div [] [text ("Time left: " ++ (timeString time) ++ "s")]
@@ -110,13 +94,29 @@ keyDownEvent =
 
 skipButton : String -> Html Event
 skipButton countryName =
-  button [ style
-            [ ("font-size", "34px")
-            , ("margin", "auto")
-            , ("display", "block")
-            , ("height", "50px")
-            , ("width", "150px")
-            ]
-         , onClick (Skip countryName)]
-         [text "skip"]
+  button
+    [ style
+      [ ("font-size", "34px")
+      , ("margin", "auto")
+      , ("display", "block")
+      , ("height", "50px")
+      , ("width", "150px")
+      ]
+   , onClick (Skip countryName)
+   ] [text "skip"]
 
+radio : String -> Bool -> Event -> Html Event
+radio value isChecked msg =
+  label
+    [ style [("padding", "20px")]
+    ]
+    [ input [ type' "checkbox", checked isChecked, name "font-size", onClick msg ] []
+    , text value
+    ]
+
+gameOver : GameOverState -> Html Event
+gameOver state = div []
+  [ div [style [("font-size", "24px"), ("text-align", "center")]] [text "Over"]
+  , points state.points
+  , button [style [("font-size", "24px"), ("display", "block"), ("margin", "0 auto")], onClick Start] [text "Restart"]
+  ]

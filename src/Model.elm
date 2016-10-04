@@ -1,11 +1,22 @@
-module Model exposing (..)
-
-import Data exposing (..)
+module Model exposing
+  ( init
+  , newGame
+  , generateNewFlag
+  , flagDatabase
+  , Model(..)
+  , Event(..)
+  , DifficultyLevel(..)
+  , StartMenuState
+  , ActiveGameState
+  , GameOverState
+  )
 
 import Dict exposing (Dict)
 import Array
 import Time exposing (Time)
 import Random
+
+import Data exposing (..)
 
 type Model =
   StartMenu StartMenuState
