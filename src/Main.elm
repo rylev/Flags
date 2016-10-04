@@ -9,12 +9,12 @@ import Html.Events exposing (on, onInput, onClick)
 import Html.Attributes exposing (style, placeholder, value)
 import Html.App as App
 
-type Event = NewInput String | Submit | NewFlag String | Skip | Tick | Restart
+type Event = NewInput String | Submit | NewFlag String | Skip | Tick Time | Restart
 type GameState = Active | Over
 type alias Model = { gameState: GameState, points: Int, currentFlag: String, currentInput: String, time: Time }
 
 main : Program Never
-main = App.program { init =  (init, generateNewFlag), update = update, view = view, subscriptions = subscription }
+main = App.program { init = (init, generateNewFlag), update = update, view = view, subscriptions = subscription }
 
 generateNewFlag : Cmd Event
 generateNewFlag = Random.generate NewFlag newFlagGenerator
@@ -23,7 +23,9 @@ newFlagGenerator : Random.Generator String
 newFlagGenerator = Random.map (atIndex flagMap germany) (randomIndex flagMap)
 
 randomIndex : Dict comparable a -> Random.Generator Int
-randomIndex map = Random.int 0 ((List.length (Dict.keys map)) - 1)
+randomIndex map =
+  let lastIndex = (List.length (Dict.keys map)) - 1
+  in Random.int 0 lastIndex
 
 atIndex : Dict comparable a -> a -> Int -> a
 atIndex dict default i = case dict |> Dict.toList |> Array.fromList |> Array.get i |> Maybe.map snd of
@@ -49,9 +51,9 @@ update event model =
           (model, Cmd.none)
     NewFlag flag -> ({model | currentFlag = flag }, Cmd.none)
     Skip -> (model, generateNewFlag)
-    Tick ->
+    Tick dt ->
       if model.time > 0 then
-        ({ model | time = model.time - tickRate }, Cmd.none)
+        ({ model | time = model.time - dt }, Cmd.none)
       else
         ({ model | gameState = Over }, Cmd.none)
     Restart -> (init, generateNewFlag)
@@ -102,29 +104,33 @@ flag : String -> Html a
 flag currentFlag = div [style [("font-size", "84px"), ("text-align", "center")]] [text currentFlag]
 
 answer : String -> Html Event
-answer currentValue = input [
-  style [ ("font-size", "40px")
-        , ("margin", "20px auto")
-        , ("display", "block")
-        , ("height", "50px")
-        , ("width", "400px")],
-  placeholder "Flag",
-  value currentValue,
-  onInput NewInput,
-  on "keydown" keyDownEvent ] []
+answer currentValue =
+  let
+    styles = style
+      [ ("font-size", "40px")
+      , ("margin", "20px auto")
+      , ("display", "block")
+      , ("height", "50px")
+      , ("width", "400px")]
+  in
+    input
+      [ styles
+      , placeholder "Flag"
+      , value currentValue
+      , onInput NewInput
+      , on "keydown" keyDownEvent ] []
 
 keyDownEvent : Json.Decode.Decoder Event
-keyDownEvent = let keyToEvent key = if key == "Enter" then Submit else Tick
-      in Json.Decode.map keyToEvent key
-
-key : Json.Decode.Decoder String
-key = "key" := Json.Decode.string
+keyDownEvent =
+  let key = "key" := Json.Decode.string
+      keyToEvent key = if key == "Enter" then Submit else Tick 0
+  in Json.Decode.map keyToEvent key
 
 skipButton : Html Event
 skipButton = button [style [("font-size", "34px"), ("margin", "auto"), ("display", "block"), ("height", "50px"), ("width", "150px")], onClick Skip] [text "skip"]
 
 subscription : Model -> Sub Event
-subscription model = Time.every tickRate (\_ -> Tick)
+subscription model = Time.every tickRate (\_ -> Tick tickRate)
 
 init : Model
 init = { gameState = Active, points = 0, currentFlag = germany, currentInput = "", time = 30 * Time.second }
