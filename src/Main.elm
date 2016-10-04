@@ -18,8 +18,7 @@ type Model = StartMenu StartMenuState | ActiveGame ActiveGameState | GameOverMen
 type alias StartMenuState = { difficultyLevel: DifficultyLevel }
 type alias ActiveGameState =
   { points: Int
-  , currentFlag: String
-  , currentCountryName: String
+  , flagInfo: FlagInfo
   , currentInput: String
   , time: Time
   , difficultyLevel: DifficultyLevel
@@ -94,7 +93,7 @@ updateActiveGame event state =
         let
             mungedInput = String.toLower state.currentInput
             flag = Dict.get mungedInput (flagDatabase state.difficultyLevel)
-            isMatch = contains flag state.currentFlag
+            isMatch = contains flag state.flagInfo.flag
         in
            if isMatch then
               (ActiveGame { state |  points = state.points + 1, currentInput = "", lastWrongQuestion = Nothing }, generateNewFlag state.difficultyLevel)
@@ -111,7 +110,7 @@ updateActiveGame event state =
       NewInput input -> (ActiveGame { state | currentInput = input }, Cmd.none)
       Submit -> onSubmit state
       RemoveWrongAnswer -> (ActiveGame { state | lastWrongQuestion = Nothing }, Cmd.none)
-      NewFlag flagInfo -> (ActiveGame { state | currentFlag = flagInfo.flag, currentCountryName = flagInfo.countryName }, Cmd.none)
+      NewFlag flagInfo -> (ActiveGame { state | flagInfo = flagInfo }, Cmd.none)
       Skip countryName -> (ActiveGame { state | lastWrongQuestion = Just countryName }, Cmd.batch [(generateNewFlag state.difficultyLevel), eventuallyRemoveWrongAnswer])
       _ -> unexpectedEvent event
 
@@ -119,8 +118,7 @@ newGame : DifficultyLevel -> Model
 newGame difficultyLevel = ActiveGame
   { difficultyLevel = difficultyLevel
   , points = 0
-  , currentFlag = germany
-  , currentCountryName = "germany"
+  , flagInfo = { flag = germany, countryName = "Germany" }
   , time = 15 * Time.second
   , currentInput = ""
   , lastWrongQuestion = Nothing
@@ -169,9 +167,9 @@ activeGame state =
     , points state.points
     , lastWrongQuestion state.lastWrongQuestion
     , time state.time
-    , flag state.currentFlag
+    , flag state.flagInfo.flag
     , answer state.currentInput
-    , skipButton state.currentCountryName
+    , skipButton state.flagInfo.countryName
     ]
 
 lastWrongQuestion : Maybe String -> Html a
