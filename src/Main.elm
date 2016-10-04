@@ -5,11 +5,11 @@ import Array
 import Dict exposing (Dict)
 import Json.Decode exposing ((:=))
 import Html exposing (Html, div, h1, text, p, input, form, button)
-import Html.Events exposing (onInput, onClick)
+import Html.Events exposing (on, onInput, onClick)
 import Html.Attributes exposing (style, placeholder, value)
 import Html.App as App
 
-type Event = Answer String | NewFlag String | Skip | Tick | Restart
+type Event = NewInput String | Submit | NewFlag String | Skip | Tick | Restart
 type GameState = Active | Over
 type alias Model = { gameState: GameState, points: Int, currentFlag: String, currentInput: String, time: Time }
 
@@ -30,16 +30,23 @@ atIndex dict default i = case dict |> Dict.toList |> Array.fromList |> Array.get
   Just item -> item
   Nothing -> default
 
+contains : Maybe a -> a -> Bool
+contains maybe value = (Maybe.map (\v -> value == v) maybe) |> Maybe.withDefault False
+
 update : Event -> Model -> (Model, Cmd Event)
 update event model =
   case Debug.log "Event" event of
-    Answer ans -> case Dict.get (String.toLower ans) flagMap of
-      Just flag ->
-        if flag == model.currentFlag then
+    NewInput input -> ({ model | currentInput = input }, Cmd.none)
+    Submit ->
+      let
+          mungedInput = String.toLower model.currentInput
+          flag = Dict.get mungedInput flagMap
+          isMatch = contains flag model.currentFlag
+      in
+        if isMatch then
           ({ model |  points = model.points + 1, currentInput = "" }, generateNewFlag)
         else
-          ({ model | currentInput = ans }, Cmd.none)
-      Nothing -> ({ model | currentInput = ans }, Cmd.none)
+          (model, Cmd.none)
     NewFlag flag -> ({model | currentFlag = flag }, Cmd.none)
     Skip -> (model, generateNewFlag)
     Tick ->
@@ -49,14 +56,16 @@ update event model =
         ({ model | gameState = Over }, Cmd.none)
     Restart -> (init, generateNewFlag)
 
+tickRate : Time
 tickRate = 100 * Time.millisecond
 
 view : Model -> Html Event
 view model =
   case model.gameState of
     Active -> activeGame model
-    Over -> gameOver
+    Over -> gameOver model
 
+activeGame : Model -> Html Event
 activeGame model = div []
   [ title
   , points model.points
@@ -66,7 +75,8 @@ activeGame model = div []
   , skipButton
   ]
 
-gameOver = div []
+gameOver : Model -> Html Event
+gameOver model = div []
   [ text "Over"
   , button [onClick Restart] [text "Restart"]
   ]
@@ -92,7 +102,23 @@ flag : String -> Html a
 flag currentFlag = div [style [("font-size", "84px"), ("text-align", "center")]] [text currentFlag]
 
 answer : String -> Html Event
-answer currentValue = input [style [("font-size", "40px"), ("margin", "20px auto"), ("display", "block"), ("height", "50px"), ("width", "400px")], placeholder "Flag", value currentValue, onInput Answer ] []
+answer currentValue = input [
+  style [ ("font-size", "40px")
+        , ("margin", "20px auto")
+        , ("display", "block")
+        , ("height", "50px")
+        , ("width", "400px")],
+  placeholder "Flag",
+  value currentValue,
+  onInput NewInput,
+  on "keydown" keyDownEvent ] []
+
+keyDownEvent : Json.Decode.Decoder Event
+keyDownEvent = let keyToEvent key = if key == "Enter" then Submit else Tick
+      in Json.Decode.map keyToEvent key
+
+key : Json.Decode.Decoder String
+key = "key" := Json.Decode.string
 
 skipButton : Html Event
 skipButton = button [style [("font-size", "34px"), ("margin", "auto"), ("display", "block"), ("height", "50px"), ("width", "150px")], onClick Skip] [text "skip"]
@@ -103,27 +129,31 @@ subscription model = Time.every tickRate (\_ -> Tick)
 init : Model
 init = { gameState = Active, points = 0, currentFlag = germany, currentInput = "", time = 30 * Time.second }
 
+china = (String.fromChar '\x1F1E8') ++ (String.fromChar '\x1F1F3')
 germany = (String.fromChar '\x1F1E9') ++ (String.fromChar '\x1F1EA')
+spain = (String.fromChar '\x1F1EA') ++ (String.fromChar '\x1F1F8')
+france = (String.fromChar '\x1F1EB') ++ (String.fromChar '\x1F1F7')
 uk = (String.fromChar '\x1F1EC') ++ (String.fromChar '\x1F1E7')
 usa = (String.fromChar '\x1F1FA') ++ (String.fromChar '\x1F1F8')
 
 flagMap : Dict String String
 flagMap =
   Dict.fromList
-    [ ("china",  (String.fromChar '\x1F1E8') ++ (String.fromChar '\x1F1F3'))
+    [ ("china",  china)
     , ("germany",  germany)
-    , ("spain",  (String.fromChar '\x1F1EA') ++ (String.fromChar '\x1F1F8'))
-    , ("france",  (String.fromChar '\x1F1EB') ++ (String.fromChar '\x1F1F7'))
+    , ("spain",  spain)
+    , ("france", france)
     , ("uk",  uk)
-    , ("great britain",  uk)
     , ("united kingdom",  uk)
+    , ("great britain",  uk)
     , ("italy",  (String.fromChar '\x1F1EE') ++ (String.fromChar '\x1F1F9'))
     , ("japan",  (String.fromChar '\x1F1EF') ++ (String.fromChar '\x1F1F5'))
     , ("south korea",  (String.fromChar '\x1F1F0') ++ (String.fromChar '\x1F1F7'))
     , ("russia",  (String.fromChar '\x1F1F7') ++ (String.fromChar '\x1F1FA'))
     , ("united states",  usa)
+    , ("usa", usa)
     , ("us", usa)
-    , ("andorra",  (String.fromChar '\x1F1E6') ++ (String.fromChar '\x1F1E9'))
+    -- , ("andorra",  (String.fromChar '\x1F1E6') ++ (String.fromChar '\x1F1E9'))
     -- ,("united arab emirates",  (String.fromChar '\x1F1E6') ++ (String.fromChar '\x1F1EA'))
     -- ,("afghanistan",  (String.fromChar '\x1F1E6') ++ (String.fromChar '\x1F1EB'))
     -- ,("antigua and barbuda",  (String.fromChar '\x1F1E6') ++ (String.fromChar '\x1F1EC'))
