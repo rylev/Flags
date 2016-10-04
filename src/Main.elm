@@ -6,33 +6,47 @@ import Dict exposing (Dict)
 import Json.Decode exposing ((:=))
 import Html exposing (Html, div, h1, text, p, input, form, button, fieldset, label)
 import Html.Events exposing (on, onInput, onClick)
-import Html.Attributes exposing (style, placeholder, value, type', name)
+import Html.Attributes exposing (style, placeholder, value, type', name, checked)
 import Html.App as App
 
 type DifficultyLevel = Level1 | Level2 | Level3 | Level4 | Level5
 type Event = NewInput String | Submit | NewFlag String | Skip | Tick Time | Start | ChangeDifficulty DifficultyLevel
-type Model = StartMenu | ActiveGame ActiveGameState | GameOverMenu GameOverState
-type alias ActiveGameState = { points: Int, currentFlag: String, currentInput: String, time: Time }
+type Model = StartMenu StartMenuState | ActiveGame ActiveGameState | GameOverMenu GameOverState
+type alias StartMenuState = { difficultyLevel: DifficultyLevel }
+type alias ActiveGameState = { points: Int, currentFlag: String, currentInput: String, time: Time, difficultyLevel: DifficultyLevel }
 type alias GameOverState = { points: Int }
 
 main : Program Never
 main = App.program { init = (init, Cmd.none), update = update, view = view, subscriptions = subscription }
 
-generateNewFlag : Cmd Event
-generateNewFlag = Random.generate NewFlag newFlagGenerator
+generateNewFlag : DifficultyLevel -> Cmd Event
+generateNewFlag difficultyLevel = Random.generate NewFlag (newFlagGenerator difficultyLevel)
 
-newFlagGenerator : Random.Generator String
-newFlagGenerator = Random.map (atIndex easy germany) (randomIndex easy)
+newFlagGenerator : DifficultyLevel -> Random.Generator String
+newFlagGenerator difficultyLevel =
+  flagDatabase difficultyLevel |> getRandom
+
+flagDatabase : DifficultyLevel -> Dict String String
+flagDatabase difficultyLevel =
+  case difficultyLevel of
+    Level1 -> level1
+    Level2 -> level2
+    Level3 -> level3
+    Level4 -> level4
+    Level5 -> level5
+
+getRandom : Dict comparable a -> Random.Generator a
+getRandom dict = Random.map (atIndex dict) (randomIndex dict)
 
 randomIndex : Dict comparable a -> Random.Generator Int
 randomIndex map =
   let lastIndex = (List.length (Dict.keys map)) - 1
   in Random.int 0 lastIndex
 
-atIndex : Dict comparable a -> a -> Int -> a
-atIndex dict default i = case dict |> Dict.toList |> Array.fromList |> Array.get i |> Maybe.map snd of
+atIndex : Dict comparable a -> Int -> a
+atIndex dict i = case dict |> Dict.toList |> Array.fromList |> Array.get i |> Maybe.map snd of
   Just item -> item
-  Nothing -> default
+  Nothing -> Debug.crash "Index out of range"
 
 contains : Maybe a -> a -> Bool
 contains maybe value = (Maybe.map (\v -> value == v) maybe) |> Maybe.withDefault False
@@ -40,20 +54,30 @@ contains maybe value = (Maybe.map (\v -> value == v) maybe) |> Maybe.withDefault
 update : Event -> Model -> (Model, Cmd Event)
 update event model =
   case model of
-    ActiveGame state -> updateActiveGame state event
-    StartMenu -> updateMenu event model
-    GameOverMenu _ -> updateMenu event model
+    ActiveGame state -> updateActiveGame event state
+    StartMenu state ->
+      case event of
+        Start -> (newGame state.difficultyLevel, generateNewFlag state.difficultyLevel)
+        ChangeDifficulty level -> (StartMenu { difficultyLevel = level }, Cmd.none)
+        Tick _ -> (model, Cmd.none)
+        _ -> unexpectedEvent event
+    GameOverMenu state ->
+      case event of
+        Start -> (newGame Level1, generateNewFlag Level1)
+        Tick _ -> (model, Cmd.none)
+        _ -> unexpectedEvent event
 
-updateActiveGame state event =
+updateActiveGame : Event -> ActiveGameState -> (Model, Cmd Event)
+updateActiveGame event state =
   let
       onSubmit state =
         let
             mungedInput = String.toLower state.currentInput
-            flag = Dict.get mungedInput easy
+            flag = Dict.get mungedInput (flagDatabase state.difficultyLevel)
             isMatch = contains flag state.currentFlag
         in
            if isMatch then
-              (ActiveGame { state |  points = state.points + 1, currentInput = "" }, generateNewFlag)
+              (ActiveGame { state |  points = state.points + 1, currentInput = "" }, generateNewFlag state.difficultyLevel)
            else
               (ActiveGame state, Cmd.none)
       onTick state dt =
@@ -67,17 +91,17 @@ updateActiveGame state event =
       NewInput input -> (ActiveGame { state | currentInput = input }, Cmd.none)
       Submit -> onSubmit state
       NewFlag flag -> (ActiveGame { state | currentFlag = flag }, Cmd.none)
-      Skip -> (ActiveGame state, generateNewFlag)
+      Skip -> (ActiveGame state, generateNewFlag state.difficultyLevel)
       _ -> unexpectedEvent event
 
-updateMenu : Event -> Model -> (Model, Cmd Event)
-updateMenu event model =
-  case event of
-    Start -> (model, generateNewFlag)
-    NewFlag flag -> ( ActiveGame { points = 0, currentFlag = flag, time = 30 * Time.second, currentInput = "" }, Cmd.none )
-    Tick _ -> (model, Cmd.none)
-    ChangeDifficulty level -> (model, Cmd.none)
-    _ -> unexpectedEvent event
+newGame : DifficultyLevel -> Model
+newGame difficultyLevel = ActiveGame
+  { difficultyLevel = difficultyLevel
+  , points = 0
+  , currentFlag = germany
+  , time = 30 * Time.second
+  , currentInput = ""
+  }
 
 unexpectedEvent : Event -> a
 unexpectedEvent event = Debug.crash ("Unexpected event " ++ (toString event))
@@ -85,12 +109,12 @@ unexpectedEvent event = Debug.crash ("Unexpected event " ++ (toString event))
 tickRate : Time
 tickRate = 100 * Time.millisecond
 
-radio : String -> msg -> Html msg
-radio value msg =
+radio : String -> Bool -> Event -> Html Event
+radio value isChecked msg =
   label
     [ style [("padding", "20px")]
     ]
-    [ input [ type' "radio", name "font-size", onClick msg ] []
+    [ input [ type' "checkbox", checked isChecked, name "font-size", onClick msg ] []
     , text value
     ]
 
@@ -98,19 +122,19 @@ view : Model -> Html Event
 view model =
   case model of
     ActiveGame state -> activeGame state
-    StartMenu -> startMenu
+    StartMenu state -> startMenu state
     GameOverMenu state -> gameOver state
 
-startMenu : Html Event
-startMenu =
+startMenu : StartMenuState -> Html Event
+startMenu state =
   div []
     [ h1 [] [text "Flags"]
     , fieldset []
-        [ radio "Level 1" (ChangeDifficulty Level1)
-        , radio "Level 2" (ChangeDifficulty Level2)
-        , radio "Level 3" (ChangeDifficulty Level3)
-        , radio "Level 4" (ChangeDifficulty Level4)
-        , radio "Level 5" (ChangeDifficulty Level5)
+        [ radio "Level 1" (state.difficultyLevel == Level1) (ChangeDifficulty Level1)
+        , radio "Level 2" (state.difficultyLevel == Level2) (ChangeDifficulty Level2)
+        , radio "Level 3" (state.difficultyLevel == Level3) (ChangeDifficulty Level3)
+        , radio "Level 4" (state.difficultyLevel == Level4) (ChangeDifficulty Level4)
+        , radio "Level 5" (state.difficultyLevel == Level5) (ChangeDifficulty Level5)
         ]
     , button [onClick Start] [text "Begin"]
     ]
@@ -182,7 +206,7 @@ subscription : Model -> Sub Event
 subscription model = Time.every tickRate (\_ -> Tick tickRate)
 
 init : Model
-init = StartMenu
+init = StartMenu { difficultyLevel = Level1 }
 
 china = (String.fromChar '\x1F1E8') ++ (String.fromChar '\x1F1F3')
 germany = (String.fromChar '\x1F1E9') ++ (String.fromChar '\x1F1EA')
@@ -191,11 +215,23 @@ france = (String.fromChar '\x1F1EB') ++ (String.fromChar '\x1F1F7')
 uk = (String.fromChar '\x1F1EC') ++ (String.fromChar '\x1F1E7')
 usa = (String.fromChar '\x1F1FA') ++ (String.fromChar '\x1F1F8')
 
-easy : Dict String String
-easy = Dict.fromList level1
+level1 : Dict String String
+level1 = Dict.fromList group1
 
-level1 : List (String, String)
-level1 =
+level2 : Dict String String
+level2 = Dict.union (Dict.fromList group1) (Dict.fromList group2)
+
+level3 : Dict String String
+level3 = Dict.union (Dict.fromList group2) (Dict.fromList group3)
+
+level4 : Dict String String
+level4 = Dict.union (Dict.fromList group3) (Dict.fromList group4)
+
+level5 : Dict String String
+level5 = Dict.union (Dict.fromList group4) (Dict.fromList group5)
+
+group1 : List (String, String)
+group1 =
   [ ("china",  china)
   , ("germany",  germany)
   , ("spain",  spain)
@@ -233,8 +269,8 @@ level1 =
   , ("sweden", (String.fromChar '\x1F1F8') ++ (String.fromChar '\x1F1EA'))
   ]
 
-level2 : List (String, String)
-level2 =
+group2 : List (String, String)
+group2 =
   [ ("iraq", (String.fromChar '\x1F1EE') ++ (String.fromChar '\x1F1F6'))
   , ("croatia", (String.fromChar '\x1F1ED') ++ (String.fromChar '\x1F1F7'))
   , ("costa rica", (String.fromChar '\x1F1E8') ++ (String.fromChar '\x1F1F7'))
@@ -263,8 +299,8 @@ level2 =
   , ("cyprus", (String.fromChar '\x1F1E8') ++ (String.fromChar '\x1F1FE'))
   ]
 
-level3 : List (String, String)
-level3 =
+group3 : List (String, String)
+group3 =
   [ ("andorra", (String.fromChar '\x1F1E6') ++ (String.fromChar '\x1F1E9'))
   , ("united arab emirates", (String.fromChar '\x1F1E6') ++ (String.fromChar '\x1F1EA'))
   , ("afghanistan", (String.fromChar '\x1F1E6') ++ (String.fromChar '\x1F1EB'))
@@ -322,8 +358,8 @@ level3 =
   , ("bahamas", (String.fromChar '\x1F1E7') ++ (String.fromChar '\x1F1F8'))
   ]
 
-level4 : List (String, String)
-level4 =
+group4 : List (String, String)
+group4 =
   [ ("antigua and barbuda", (String.fromChar '\x1F1E6') ++ (String.fromChar '\x1F1EC'))
   , ("kyrgyzstan", (String.fromChar '\x1F1F0') ++ (String.fromChar '\x1F1EC'))
   , ("antarctica", (String.fromChar '\x1F1E6') ++ (String.fromChar '\x1F1F6'))
@@ -416,8 +452,8 @@ level4 =
   , ("virgin islands, u.s.", (String.fromChar '\x1F1FB') ++ (String.fromChar '\x1F1EE'))
   ]
 
-level5 : List (String, String)
-level5 =
+group5 : List (String, String)
+group5 =
   [ ("anguilla", (String.fromChar '\x1F1E6') ++ (String.fromChar '\x1F1EE'))
   , ("åland islands", (String.fromChar '\x1F1E6') ++ (String.fromChar '\x1F1FD'))
   , ("bahrain", (String.fromChar '\x1F1E7') ++ (String.fromChar '\x1F1ED'))
