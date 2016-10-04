@@ -1,4 +1,6 @@
 import Time exposing (Time)
+import Task
+import Process
 import Random
 import String
 import Array
@@ -11,7 +13,7 @@ import Html.App as App
 
 type DifficultyLevel = Level1 | Level2 | Level3 | Level4 | Level5
 type alias FlagInfo = { countryName: String, flag: String }
-type Event = NewInput String | Submit | NewFlag FlagInfo | Skip String | Tick Time | Start | ChangeDifficulty DifficultyLevel
+type Event = NewInput String | Submit | NewFlag FlagInfo | Skip String | Tick Time | Start | ChangeDifficulty DifficultyLevel | RemoveWrongAnswer
 type Model = StartMenu StartMenuState | ActiveGame ActiveGameState | GameOverMenu GameOverState
 type alias StartMenuState = { difficultyLevel: DifficultyLevel }
 type alias ActiveGameState =
@@ -76,6 +78,15 @@ update event model =
         Tick _ -> (model, Cmd.none)
         _ -> unexpectedEvent event
 
+eventuallyRemoveWrongAnswer : Cmd Event
+eventuallyRemoveWrongAnswer = waitThen (3 * Time.second) RemoveWrongAnswer
+
+waitThen : Time -> a -> Cmd a
+waitThen time msg =
+  let wrap thing = (\_ -> thing)
+      sleep = Process.sleep time `Task.andThen` wrap (Task.succeed ())
+  in Task.perform (wrap msg) (wrap msg) sleep
+
 updateActiveGame : Event -> ActiveGameState -> (Model, Cmd Event)
 updateActiveGame event state =
   let
@@ -86,7 +97,7 @@ updateActiveGame event state =
             isMatch = contains flag state.currentFlag
         in
            if isMatch then
-              (ActiveGame { state |  points = state.points + 1, currentInput = "" }, generateNewFlag state.difficultyLevel)
+              (ActiveGame { state |  points = state.points + 1, currentInput = "", lastWrongQuestion = Nothing }, generateNewFlag state.difficultyLevel)
            else
               (ActiveGame state, Cmd.none)
       onTick state dt =
@@ -99,8 +110,9 @@ updateActiveGame event state =
       Tick dt -> onTick state dt
       NewInput input -> (ActiveGame { state | currentInput = input }, Cmd.none)
       Submit -> onSubmit state
+      RemoveWrongAnswer -> (ActiveGame { state | lastWrongQuestion = Nothing }, Cmd.none)
       NewFlag flagInfo -> (ActiveGame { state | currentFlag = flagInfo.flag, currentCountryName = flagInfo.countryName }, Cmd.none)
-      Skip countryName -> (ActiveGame { state | lastWrongQuestion = Just countryName }, generateNewFlag state.difficultyLevel)
+      Skip countryName -> (ActiveGame { state | lastWrongQuestion = Just countryName }, Cmd.batch [(generateNewFlag state.difficultyLevel), eventuallyRemoveWrongAnswer])
       _ -> unexpectedEvent event
 
 newGame : DifficultyLevel -> Model
