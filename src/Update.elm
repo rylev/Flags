@@ -1,6 +1,6 @@
 module Update exposing (update)
 
-import Model exposing (newGame, generateNewFlag, flagDatabase, Event(..), Model(..), ActiveGameState, DifficultyLevel(..))
+import Model exposing (newGame, generateNewFlag, flagDatabase, timePerQuestion, Event(..), Model(..), ActiveGameState, DifficultyLevel(..))
 import Task
 import Time exposing (Time)
 import Dict exposing (Dict)
@@ -34,7 +34,7 @@ updateActiveGame event state =
             isMatch = flag `equal` state.flagInfo.flag
         in
            if isMatch then
-              (ActiveGame { state |  points = state.points + 1, currentInput = "", lastWrongQuestion = Nothing, time = 10 * Time.second }, generateNewFlag state.difficultyLevel)
+              (ActiveGame { state |  points = state.points + 1, currentInput = "", lastWrongQuestion = Nothing, time = timePerQuestion }, generateNewFlag state.difficultyLevel)
            else
               (ActiveGame state, Cmd.none)
       onTick state dt =
@@ -49,7 +49,7 @@ updateActiveGame event state =
       Submit -> onSubmit state
       RemoveWrongAnswer -> (ActiveGame { state | lastWrongQuestion = Nothing }, Cmd.none)
       NewFlag flagInfo -> (ActiveGame { state | flagInfo = flagInfo }, Cmd.none)
-      Skip countryName -> (ActiveGame { state | lastWrongQuestion = Just countryName, time = 10 * Time.second }, Cmd.batch [(generateNewFlag state.difficultyLevel), eventuallyRemoveWrongAnswer])
+      Skip countryName -> (ActiveGame { state | lastWrongQuestion = Just countryName, time = timePerQuestion }, Cmd.batch [(generateNewFlag state.difficultyLevel), eventuallyRemoveWrongAnswer])
       _ -> unexpectedEvent event
 
 unexpectedEvent : Event -> a
