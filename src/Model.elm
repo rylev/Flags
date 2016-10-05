@@ -42,7 +42,7 @@ newGame difficultyLevel = ActiveGame
   { difficultyLevel = difficultyLevel
   , points = 0
   , flagInfo = { flag = germany, countryName = "Germany" }
-  , time = 15 * Time.second
+  , time = 10 * Time.second
   , currentInput = ""
   , lastWrongQuestion = Nothing
   }
