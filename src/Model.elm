@@ -3,6 +3,7 @@ module Model exposing
   , newGame
   , generateNewFlag
   , flagDatabase
+  , timePerQuestion
   , Model(..)
   , Event(..)
   , DifficultyLevel(..)
@@ -42,10 +43,12 @@ newGame difficultyLevel = ActiveGame
   { difficultyLevel = difficultyLevel
   , points = 0
   , flagInfo = { flag = germany, countryName = "Germany" }
-  , time = 15 * Time.second
+  , time = timePerQuestion
   , currentInput = ""
   , lastWrongQuestion = Nothing
   }
+
+timePerQuestion = 10 * Time.second
 
 
 type Event =
